@@ -6,13 +6,14 @@
 {% if items %}
 <table>
   <thead>
-    <tr><th>Name</th><th>Units</th><th>Status</th></tr>
+    <tr><th>Name</th><th>Units</th><th>Expires</th><th>Status</th></tr>
   </thead>
   <tbody>
     {% for item in items %}
     <tr>
       <td><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.name }}</a></td>
-      <td>{{ item.quantity }}</td>
+      <td>{{ item.remaining_quantity }}</td>
+      <td>{{ item.expiration_date.isoformat() if item.expiration_date else "—" }}</td>
       <td>{{ "Active" if item.is_active else "Inactive" }}</td>
     </tr>
     {% endfor %}
@@ -26,7 +27,7 @@
   <h2>Add item</h2>
   <form method="post" action="{{ url_for('create_item') }}">
     <label>Name <input name="name" required maxlength="200" value="{{ form.name or '' }}"></label>
-    <label>Units <input name="quantity" type="number" min="0" required value="{{ form.quantity or 1 }}"></label>
+    <label>Units <input name="remaining_quantity" type="number" min="0" required value="{{ form.remaining_quantity or 1 }}"></label>
     <label>Description <textarea name="description" rows="2">{{ form.description or '' }}</textarea></label>
     <button type="submit">Add item</button>
   </form>

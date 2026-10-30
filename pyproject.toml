@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
+    "aerich>=0.9",
 ]
 
 [project.optional-dependencies]
@@ -46,3 +47,10 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # Tortoise reads `class Meta` attributes like `ordering = [...]`; these are not mutable defaults.
 "src/book_inventory/models/*" = ["RUF012"]
+# Aerich-generated SQL contains long table comments.
+"src/book_inventory/migrations/*" = ["E501"]
+
+[tool.aerich]
+tortoise_orm = "book_inventory.db.TORTOISE_ORM"
+location = "./src/book_inventory/migrations"
+src_folder = "./src"

@@ -45,12 +45,13 @@ src/book_inventory/
 ├── main.py            # app factory, lifespan (DB init), router + static mounting
 ├── config.py          # settings via pydantic-settings (env vars / .env)
 ├── db.py              # Tortoise ORM config
-├── models/            # Tortoise models: InventoryItem, Booking
+├── models/            # Tortoise models: InventoryItem, Customer, Booking
 ├── schemas/           # Pydantic request/response models
-├── services/          # business logic (availability, booking, cancellation)
+├── scheduler.py       # background job: complete ended bookings, return stock
+├── services/          # business logic (booking, cancellation, completion)
 ├── api/               # REST API, mounted at /api/v1
 │   ├── deps.py
-│   └── routes/        # health, items, bookings
+│   └── routes/        # health, items, customers, bookings
 ├── web/               # HTML routes rendering Jinja2 templates
 ├── templates/
 └── static/
@@ -64,17 +65,46 @@ tests/                 # pytest suite (API + web)
 | GET | `/api/v1/items` | List items (`?active_only=true`) |
 | POST | `/api/v1/items` | Create item |
 | GET / PATCH / DELETE | `/api/v1/items/{id}` | Read, update, or delete an item (delete is refused when it has bookings) |
-| GET | `/api/v1/items/{id}/availability?start_at=&end_at=` | Units free in a time window |
+| GET | `/api/v1/customers`, `/api/v1/customers/{id}` | List / read customers |
 | GET | `/api/v1/bookings` | List bookings (`?item_id=`) |
-| POST | `/api/v1/bookings` | Create booking (409 if not enough units are free) |
+| POST | `/api/v1/bookings` | Create booking for an `item_id` and `customer_id` (404 if either is unknown, 409 if not enough units are free) |
 | GET | `/api/v1/bookings/{id}` | Read booking |
 | POST | `/api/v1/bookings/{id}/cancel` | Cancel booking |
 
-Bookings cover the half-open interval `[start_at, end_at)`, so back-to-back bookings don't conflict.
+Booking stock: confirming a booking subtracts its `quantity` from the item's `remaining_quantity` and
+adds one to the customer's `booking_count`; cancelling reverses both. `remaining_quantity` is a running
+counter, so `start_at`/`end_at` don't affect availability when booking.
+
+Once a booking's `end_at` has passed, a background job marks it `completed` and returns its units to
+`remaining_quantity` (the customer's `booking_count` is left as is). A completed booking can no longer
+be cancelled (409). See below.
+
+## Background job
+
+`scheduler.py` runs an asyncio task inside the app process: it completes ended bookings once at
+startup (catching up after downtime) and then every `COMPLETE_BOOKINGS_INTERVAL_SECONDS` (default 60).
+Set `RUN_SCHEDULER=false` to turn it off. A failed run is logged and retried on the next tick. It is
+safe with several app instances or workers: rows are locked, so each booking is released exactly once.
 Times without a timezone are treated as UTC.
 
-## Database schema
+## Database schema and seed data
 
-On startup the app creates missing tables (`GENERATE_SCHEMAS=true`). That's fine for development, but
-before deploying anywhere persistent, add migrations (e.g. [Aerich](https://github.com/tortoise/aerich))
-and set `GENERATE_SCHEMAS=false`.
+The schema is managed with [Aerich](https://github.com/tortoise/aerich) migrations in
+`src/book_inventory/migrations/models/`. The app applies pending migrations on startup
+(`RUN_MIGRATIONS=true`, the default), so a fresh database ends up with the schema and the seed data:
+
+- `0_…_init` – the full schema: `inventory_items`, `customers`, `bookings`
+- `1_…_import_inventory_and_customers` – imports `migrations/data/inventory.csv` and `members.csv`
+  (inventory `title` → item `name`, `remaining_count` → `remaining_quantity`, `expiration_date`;
+  members → `customers`; a repeated title such as "London" is imported as "London (2)" because
+  item names are unique)
+
+The CSVs are a snapshot read once by that migration; changing them later does not re-import.
+
+Common commands (run from the repo root, with `DATABASE_URL` set):
+
+```bash
+python -m aerich upgrade                   # apply pending migrations
+python -m aerich migrate --name add_thing  # generate a migration after changing a model
+python -m aerich downgrade -v 1 --yes      # roll back to before the data import
+```

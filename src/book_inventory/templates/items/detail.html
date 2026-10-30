@@ -6,7 +6,7 @@
 <p><a href="{{ url_for('index') }}">&larr; All items</a></p>
 <h1>{{ item.name }}</h1>
 {% if item.description %}<p>{{ item.description }}</p>{% endif %}
-<p class="muted">{{ item.quantity }} unit(s) · {{ "Active" if item.is_active else "Inactive" }}</p>
+<p class="muted">{{ item.remaining_quantity }} unit(s) remaining · {{ "Active" if item.is_active else "Inactive" }}{% if item.expiration_date %} · Expires {{ item.expiration_date.isoformat() }}{% endif %}</p>
 
 <h2>Upcoming bookings</h2>
 {% if bookings %}
@@ -17,7 +17,7 @@
   <tbody>
     {% for booking in bookings %}
     <tr>
-      <td>{{ booking.customer_name }}</td>
+      <td>{{ booking.customer.name }} {{ booking.customer.surname }}</td>
       <td>{{ booking.quantity }}</td>
       <td>{{ booking.start_at.strftime("%Y-%m-%d %H:%M") }}</td>
       <td>{{ booking.end_at.strftime("%Y-%m-%d %H:%M") }}</td>
@@ -33,9 +33,15 @@
 <section class="card">
   <h2>Book this item</h2>
   <form method="post" action="{{ url_for('book_item', item_id=item.id) }}">
-    <label>Name <input name="customer_name" required value="{{ form.customer_name or '' }}"></label>
-    <label>Email <input name="customer_email" type="email" required value="{{ form.customer_email or '' }}"></label>
-    <label>Units <input name="quantity" type="number" min="1" max="{{ item.quantity }}" value="{{ form.quantity or 1 }}"></label>
+    <label>Customer
+      <select name="customer_id" required>
+        <option value="" disabled {{ "" if form.customer_id else "selected" }}>Select a customer</option>
+        {% for customer in customers %}
+        <option value="{{ customer.id }}" {{ "selected" if form.customer_id|string == customer.id|string }}>{{ customer.name }} {{ customer.surname }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Units <input name="quantity" type="number" min="1" max="{{ item.remaining_quantity }}" value="{{ form.quantity or 1 }}"></label>
     <label>From (UTC) <input name="start_at" type="datetime-local" required value="{{ form.start_at or '' }}"></label>
     <label>To (UTC) <input name="end_at" type="datetime-local" required value="{{ form.end_at or '' }}"></label>
     <button type="submit">Book</button>

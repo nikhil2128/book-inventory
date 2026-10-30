@@ -8,13 +8,14 @@ if TYPE_CHECKING:
 
 
 class InventoryItem(Model):
-    """A bookable resource. `quantity` is how many units can be booked at the same time."""
+    """A bookable resource. `remaining_quantity` is how many units can be booked at once."""
 
     id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=200, unique=True)
     description = fields.TextField(default="")
-    quantity = fields.IntField()
+    remaining_quantity = fields.IntField()
     is_active = fields.BooleanField(default=True)
+    expiration_date = fields.DateField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from book_inventory.models import BookingStatus
 
@@ -13,8 +13,7 @@ def ensure_aware(value: datetime) -> datetime:
 
 class BookingCreate(BaseModel):
     item_id: int
-    customer_name: str = Field(min_length=1, max_length=200)
-    customer_email: EmailStr
+    customer_id: int
     quantity: int = Field(default=1, ge=1)
     start_at: datetime
     end_at: datetime
@@ -36,19 +35,9 @@ class BookingRead(BaseModel):
 
     id: int
     item_id: int
-    customer_name: str
-    customer_email: str
+    customer_id: int
     quantity: int
     start_at: datetime
     end_at: datetime
     status: BookingStatus
     created_at: datetime
-
-
-class Availability(BaseModel):
-    item_id: int
-    start_at: datetime
-    end_at: datetime
-    total: int
-    booked: int
-    available: int

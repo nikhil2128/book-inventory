@@ -1,14 +1,11 @@
-from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from tortoise.exceptions import IntegrityError
 
 from book_inventory.api.deps import get_item_or_404
 from book_inventory.models import InventoryItem
-from book_inventory.schemas import Availability, ItemCreate, ItemRead, ItemUpdate
-from book_inventory.schemas.booking import ensure_aware
-from book_inventory.services.bookings import get_availability
+from book_inventory.schemas import ItemCreate, ItemRead, ItemUpdate
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -55,15 +52,3 @@ async def delete_item(item: ItemDep) -> None:
             status.HTTP_409_CONFLICT, "Item has bookings; deactivate it instead of deleting"
         )
     await item.delete()
-
-
-@router.get("/{item_id}/availability", response_model=Availability)
-async def item_availability(
-    item: ItemDep,
-    start_at: Annotated[datetime, Query()],
-    end_at: Annotated[datetime, Query()],
-) -> Availability:
-    start_at, end_at = ensure_aware(start_at), ensure_aware(end_at)
-    if end_at <= start_at:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "end_at must be after start_at")
-    return await get_availability(item, start_at, end_at)

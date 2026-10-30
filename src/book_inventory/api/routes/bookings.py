@@ -6,6 +6,8 @@ from book_inventory.api.deps import get_booking_or_404
 from book_inventory.models import Booking
 from book_inventory.schemas import BookingCreate, BookingRead
 from book_inventory.services.bookings import (
+    BookingNotCancellableError,
+    CustomerNotFoundError,
     InsufficientAvailabilityError,
     ItemNotFoundError,
     cancel_booking,
@@ -29,7 +31,7 @@ async def list_bookings(item_id: int | None = None) -> list[Booking]:
 async def create(payload: BookingCreate) -> Booking:
     try:
         return await create_booking(payload)
-    except ItemNotFoundError as exc:
+    except (ItemNotFoundError, CustomerNotFoundError) as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except InsufficientAvailabilityError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -42,4 +44,7 @@ async def get_booking(booking: BookingDep) -> Booking:
 
 @router.post("/{booking_id}/cancel", response_model=BookingRead)
 async def cancel(booking: BookingDep) -> Booking:
-    return await cancel_booking(booking)
+    try:
+        return await cancel_booking(booking)
+    except BookingNotCancellableError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc

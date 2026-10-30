@@ -22,7 +22,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-book_inventory}
       DEBUG: ${DEBUG:-true}
-      GENERATE_SCHEMAS: ${GENERATE_SCHEMAS:-true}
+      GENERATE_SCHEMAS: ${GENERATE_SCHEMAS:-false}
     ports:
       - "${APP_PORT:-8000}:8000"
     volumes:

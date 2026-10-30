@@ -8,7 +8,7 @@ from tortoise import Tortoise
 from book_inventory.config import Settings
 from book_inventory.db import get_tortoise_config
 from book_inventory.main import create_app
-from book_inventory.models import InventoryItem
+from book_inventory.models import Customer, InventoryItem
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://:memory:")
 
@@ -32,4 +32,9 @@ async def client(db: None) -> AsyncIterator[AsyncClient]:
 
 @pytest.fixture
 async def item(db: None) -> InventoryItem:
-    return await InventoryItem.create(name="Meeting Room A", quantity=2)
+    return await InventoryItem.create(name="Meeting Room A", remaining_quantity=2)
+
+
+@pytest.fixture
+async def customer(db: None) -> Customer:
+    return await Customer.create(name="Ada", surname="Lovelace", date_joined="2024-01-02T12:00:00Z")

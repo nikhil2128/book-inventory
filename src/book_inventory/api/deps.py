@@ -1,6 +1,8 @@
-from fastapi import HTTPException, status
+from typing import Annotated
 
-from book_inventory.models import Booking, InventoryItem
+from fastapi import Depends, HTTPException, status
+
+from book_inventory.models import Booking, Customer, InventoryItem
 
 
 async def get_item_or_404(item_id: int) -> InventoryItem:
@@ -15,3 +17,13 @@ async def get_booking_or_404(booking_id: int) -> Booking:
     if booking is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     return booking
+
+
+async def get_customer_or_404(customer_id: int) -> Customer:
+    customer = await Customer.get_or_none(id=customer_id)
+    if customer is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
+    return customer
+
+
+CustomerDep = Annotated[Customer, Depends(get_customer_or_404)]
