@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Book Inventory{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a href="{{ url_for('index') }}" class="brand">Book Inventory</a>
+    <nav><a href="/docs">API docs</a></nav>
+  </header>
+  <main class="container">
+    {% if errors %}
+      <div class="alert" role="alert">
+        <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

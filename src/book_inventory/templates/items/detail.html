@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.name }} · Book Inventory{% endblock %}
+
+{% block content %}
+<p><a href="{{ url_for('index') }}">&larr; All items</a></p>
+<h1>{{ item.name }}</h1>
+{% if item.description %}<p>{{ item.description }}</p>{% endif %}
+<p class="muted">{{ item.quantity }} unit(s) · {{ "Active" if item.is_active else "Inactive" }}</p>
+
+<h2>Upcoming bookings</h2>
+{% if bookings %}
+<table>
+  <thead>
+    <tr><th>Customer</th><th>Units</th><th>From (UTC)</th><th>To (UTC)</th></tr>
+  </thead>
+  <tbody>
+    {% for booking in bookings %}
+    <tr>
+      <td>{{ booking.customer_name }}</td>
+      <td>{{ booking.quantity }}</td>
+      <td>{{ booking.start_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>{{ booking.end_at.strftime("%Y-%m-%d %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No upcoming bookings.</p>
+{% endif %}
+
+{% if item.is_active %}
+<section class="card">
+  <h2>Book this item</h2>
+  <form method="post" action="{{ url_for('book_item', item_id=item.id) }}">
+    <label>Name <input name="customer_name" required value="{{ form.customer_name or '' }}"></label>
+    <label>Email <input name="customer_email" type="email" required value="{{ form.customer_email or '' }}"></label>
+    <label>Units <input name="quantity" type="number" min="1" max="{{ item.quantity }}" value="{{ form.quantity or 1 }}"></label>
+    <label>From (UTC) <input name="start_at" type="datetime-local" required value="{{ form.start_at or '' }}"></label>
+    <label>To (UTC) <input name="end_at" type="datetime-local" required value="{{ form.end_at or '' }}"></label>
+    <button type="submit">Book</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

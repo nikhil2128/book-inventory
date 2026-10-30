@@ -1,0 +1,48 @@
+[project]
+name = "book-inventory"
+version = "0.1.0"
+description = "Manage a bookable inventory via a REST API and a simple web UI."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.120",
+    "uvicorn[standard]>=0.30",
+    "tortoise-orm[asyncpg]>=0.24",
+    "pydantic[email]>=2.7",
+    "pydantic-settings>=2.3",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/book_inventory"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tortoise reads `class Meta` attributes like `ordering = [...]`; these are not mutable defaults.
+"src/book_inventory/models/*" = ["RUF012"]
