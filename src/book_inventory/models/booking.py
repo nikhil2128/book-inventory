@@ -1,6 +1,7 @@
 from enum import StrEnum
 
 from tortoise import fields
+from tortoise.indexes import Index, PartialIndex
 from tortoise.models import Model
 
 
@@ -22,8 +23,8 @@ class Booking(Model):
         "models.Customer", related_name="bookings", on_delete=fields.RESTRICT
     )
     quantity = fields.IntField(default=1)
-    start_at = fields.DatetimeField(db_index=True)
-    end_at = fields.DatetimeField(db_index=True)
+    start_at = fields.DatetimeField()
+    end_at = fields.DatetimeField()
     status = fields.CharEnumField(BookingStatus, default=BookingStatus.CONFIRMED)
     created_at = fields.DatetimeField(auto_now_add=True)
 
@@ -33,3 +34,21 @@ class Booking(Model):
     class Meta:
         table = "bookings"
         ordering = ["start_at"]
+        # One index per query that needs it (see "Indexes" in the README). The partial ones only
+        # hold confirmed bookings, which stay few while completed/cancelled history grows.
+        indexes = [
+            # Bookings of an item, newest first; also covers the item foreign key.
+            Index(fields=("item_id", "start_at"), name="idx_bookings_item_start"),
+            # A customer's active units (booking limit, dropdown counts).
+            PartialIndex(
+                fields=("customer_id",),
+                condition={"status": BookingStatus.CONFIRMED.value},
+                name="idx_bookings_confirmed_customer",
+            ),
+            # The scheduler's "confirmed bookings that have ended" lookup.
+            PartialIndex(
+                fields=("end_at",),
+                condition={"status": BookingStatus.CONFIRMED.value},
+                name="idx_bookings_confirmed_end_at",
+            ),
+        ]

@@ -7,6 +7,7 @@ from book_inventory.models import Booking
 from book_inventory.schemas import BookingCreate, BookingRead
 from book_inventory.services.bookings import (
     BookingNotCancellableError,
+    CustomerLimitReachedError,
     CustomerNotFoundError,
     InsufficientAvailabilityError,
     ItemNotFoundError,
@@ -33,7 +34,7 @@ async def create(payload: BookingCreate) -> Booking:
         return await create_booking(payload)
     except (ItemNotFoundError, CustomerNotFoundError) as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except InsufficientAvailabilityError as exc:
+    except (InsufficientAvailabilityError, CustomerLimitReachedError) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
 

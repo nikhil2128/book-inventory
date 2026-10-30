@@ -25,7 +25,7 @@
 
 <section class="card">
   <h2>Add item</h2>
-  <form method="post" action="{{ url_for('create_item') }}">
+  <form method="post" action="{{ url_for('create_item_form') }}">
     <label>Name <input name="name" required maxlength="200" value="{{ form.name or '' }}"></label>
     <label>Units <input name="remaining_quantity" type="number" min="0" required value="{{ form.remaining_quantity or 1 }}"></label>
     <label>Description <textarea name="description" rows="2">{{ form.description or '' }}</textarea></label>

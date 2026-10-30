@@ -3,14 +3,19 @@
 A confirmed booking takes `quantity` units out of the item's `remaining_quantity` and adds one to
 the customer's `booking_count`; cancelling puts both back. Once a booking's `end_at` has passed,
 `complete_expired_bookings` marks it completed and returns the units (the count is left alone).
+
+A customer may hold at most `max_active_units_per_customer` units in confirmed ("active")
+bookings at once; a booking that would exceed that is refused.
 """
 
 from collections import defaultdict
 from datetime import UTC, datetime
 
 from tortoise.expressions import F, Q
+from tortoise.functions import Sum
 from tortoise.transactions import in_transaction
 
+from book_inventory.config import get_settings
 from book_inventory.models import Booking, BookingStatus, Customer, InventoryItem
 from book_inventory.schemas import BookingCreate
 
@@ -34,11 +39,43 @@ class BookingNotCancellableError(BookingError):
         super().__init__(f"Booking {booking_id} has already ended and cannot be cancelled")
 
 
+class CustomerLimitReachedError(BookingError):
+    def __init__(self, active: int, requested: int, limit: int) -> None:
+        super().__init__(
+            f"Customer already has {active} active booking(s) and can have at most {limit}; "
+            f"cannot add {requested} more"
+        )
+        self.active = active
+        self.requested = requested
+        self.limit = limit
+
+
 class InsufficientAvailabilityError(BookingError):
     def __init__(self, requested: int, available: int) -> None:
         super().__init__(f"Requested {requested} unit(s) but only {available} available")
         self.requested = requested
         self.available = available
+
+
+async def active_units(customer_id: int) -> int:
+    """Units a customer holds in confirmed ("active") bookings."""
+    totals = (
+        await Booking.filter(customer_id=customer_id, status=BookingStatus.CONFIRMED)
+        .annotate(total=Sum("quantity"))
+        .values_list("total", flat=True)
+    )
+    return totals[0] or 0
+
+
+async def active_units_by_customer() -> dict[int, int]:
+    """Active units per customer id; customers with none are absent."""
+    rows = (
+        await Booking.filter(status=BookingStatus.CONFIRMED)
+        .group_by("customer_id")
+        .annotate(total=Sum("quantity"))
+        .values("customer_id", "total")
+    )
+    return {row["customer_id"]: row["total"] for row in rows}
 
 
 async def create_booking(data: BookingCreate) -> Booking:
@@ -56,8 +93,15 @@ async def create_booking(data: BookingCreate) -> Booking:
         if item is None:
             raise ItemNotFoundError(data.item_id)
 
-        if not await Customer.exists(id=data.customer_id):
+        # Lock the customer too, so two concurrent bookings can't both slip under the limit.
+        customer = await Customer.filter(id=data.customer_id).select_for_update().first()
+        if customer is None:
             raise CustomerNotFoundError(data.customer_id)
+
+        limit = get_settings().max_active_units_per_customer
+        active = await active_units(customer.id)
+        if active + data.quantity > limit:
+            raise CustomerLimitReachedError(active, data.quantity, limit)
 
         if data.quantity > item.remaining_quantity:
             raise InsufficientAvailabilityError(data.quantity, item.remaining_quantity)

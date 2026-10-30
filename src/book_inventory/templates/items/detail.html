@@ -8,43 +8,59 @@
 {% if item.description %}<p>{{ item.description }}</p>{% endif %}
 <p class="muted">{{ item.remaining_quantity }} unit(s) remaining · {{ "Active" if item.is_active else "Inactive" }}{% if item.expiration_date %} · Expires {{ item.expiration_date.isoformat() }}{% endif %}</p>
 
-<h2>Upcoming bookings</h2>
+<h2>Bookings</h2>
 {% if bookings %}
 <table>
   <thead>
-    <tr><th>Customer</th><th>Units</th><th>From (UTC)</th><th>To (UTC)</th></tr>
+    <tr><th>Customer</th><th>Units</th><th>From (UTC)</th><th>To (UTC)</th><th>Status</th><th></th></tr>
   </thead>
   <tbody>
     {% for booking in bookings %}
-    <tr>
+    <tr{% if booking.status.value != "confirmed" %} class="muted"{% endif %}>
       <td>{{ booking.customer.name }} {{ booking.customer.surname }}</td>
       <td>{{ booking.quantity }}</td>
       <td>{{ booking.start_at.strftime("%Y-%m-%d %H:%M") }}</td>
       <td>{{ booking.end_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>{{ booking.status.value | capitalize }}</td>
+      <td>
+        {% if booking.status.value == "confirmed" %}
+        <form method="post" action="{{ url_for('cancel_item_booking', item_id=item.id, booking_id=booking.id) }}"
+              onsubmit="return confirm('Cancel this booking?')">
+          <button type="submit" class="danger">Cancel</button>
+        </form>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% if bookings_note %}<p class="muted">{{ bookings_note }}</p>{% endif %}
 {% else %}
-<p class="muted">No upcoming bookings.</p>
+<p class="muted">No bookings yet.</p>
 {% endif %}
 
 {% if item.is_active %}
+{% set sold_out = item.remaining_quantity <= 0 %}
+{% set off = "disabled" if sold_out else "" %}
 <section class="card">
   <h2>Book this item</h2>
+  {% if sold_out %}
+  <p class="muted" role="status">No units remaining. This item can be booked again once a booking is cancelled or ends.</p>
+  {% endif %}
   <form method="post" action="{{ url_for('book_item', item_id=item.id) }}">
     <label>Customer
-      <select name="customer_id" required>
+      <select name="customer_id" required {{ off }}>
         <option value="" disabled {{ "" if form.customer_id else "selected" }}>Select a customer</option>
         {% for customer in customers %}
-        <option value="{{ customer.id }}" {{ "selected" if form.customer_id|string == customer.id|string }}>{{ customer.name }} {{ customer.surname }}</option>
+        {% set active = customer.active_bookings or 0 %}
+        <option value="{{ customer.id }}" {{ "selected" if form.customer_id|string == customer.id|string }}>{{ customer.name }} {{ customer.surname }} ({{ active }} active booking{{ "" if active == 1 else "s" }})</option>
         {% endfor %}
       </select>
     </label>
-    <label>Units <input name="quantity" type="number" min="1" max="{{ item.remaining_quantity }}" value="{{ form.quantity or 1 }}"></label>
-    <label>From (UTC) <input name="start_at" type="datetime-local" required value="{{ form.start_at or '' }}"></label>
-    <label>To (UTC) <input name="end_at" type="datetime-local" required value="{{ form.end_at or '' }}"></label>
-    <button type="submit">Book</button>
+    <label>Units <input name="quantity" type="number" min="1" max="{{ item.remaining_quantity }}" value="{{ form.quantity or 1 }}" {{ off }}></label>
+    <label>From (UTC) <input name="start_at" type="datetime-local" required value="{{ form.start_at or '' }}" {{ off }}></label>
+    <label>To (UTC) <input name="end_at" type="datetime-local" required value="{{ form.end_at or '' }}" {{ off }}></label>
+    <button type="submit" {{ off }}>Book</button>
   </form>
 </section>
 {% endif %}

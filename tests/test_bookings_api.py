@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-from book_inventory.models import Customer, InventoryItem
+from book_inventory.models import Booking, BookingStatus, Customer, InventoryItem
 
 
 def booking_payload(item_id: int, customer_id: int, **overrides: Any) -> dict[str, Any]:
@@ -27,6 +27,9 @@ async def test_create_booking(client: AsyncClient, item: InventoryItem, customer
 async def test_booking_rejects_overbooking(
     client: AsyncClient, item: InventoryItem, customer: Customer
 ) -> None:
+    other = await Customer.create(
+        name="Grace", surname="Hopper", date_joined="2024-01-02T12:00:00Z"
+    )
     # item has 2 units
     assert (
         await client.post(
@@ -37,10 +40,11 @@ async def test_booking_rejects_overbooking(
     response = await client.post(
         "/api/v1/bookings",
         json=booking_payload(
-            item.id, customer.id, start_at="2031-01-01T11:00:00Z", end_at="2031-01-01T13:00:00Z"
+            item.id, other.id, start_at="2031-01-01T11:00:00Z", end_at="2031-01-01T13:00:00Z"
         ),
     )
     assert response.status_code == 409  # stock is a running counter, dates don't matter
+    assert "available" in response.json()["detail"]
 
 
 async def test_cancelled_booking_frees_stock(
@@ -152,3 +156,80 @@ async def test_rejected_booking_changes_nothing(
     await customer.refresh_from_db()
     assert item.remaining_quantity == 2
     assert customer.booking_count == 0
+
+
+async def _book(client: AsyncClient, item: InventoryItem, customer: Customer, quantity: int):
+    return await client.post(
+        "/api/v1/bookings", json=booking_payload(item.id, customer.id, quantity=quantity)
+    )
+
+
+async def test_customer_cannot_exceed_max_active_units(
+    client: AsyncClient, customer: Customer
+) -> None:
+    stocked = await InventoryItem.create(name="Plenty", remaining_quantity=10)
+    assert (await _book(client, stocked, customer, 2)).status_code == 201
+
+    response = await _book(client, stocked, customer, 1)  # 2 + 1 > 2
+
+    assert response.status_code == 409
+    assert "at most 2" in response.json()["detail"]
+    await stocked.refresh_from_db()
+    await customer.refresh_from_db()
+    assert (stocked.remaining_quantity, customer.booking_count) == (8, 1)  # nothing changed
+
+
+async def test_limit_is_checked_across_bookings_and_items(
+    client: AsyncClient, customer: Customer
+) -> None:
+    first = await InventoryItem.create(name="First", remaining_quantity=5)
+    second = await InventoryItem.create(name="Second", remaining_quantity=5)
+    assert (await _book(client, first, customer, 1)).status_code == 201
+    assert (await _book(client, second, customer, 1)).status_code == 201
+
+    assert (await _book(client, first, customer, 1)).status_code == 409
+
+
+async def test_single_booking_over_the_limit_is_rejected(
+    client: AsyncClient, customer: Customer
+) -> None:
+    stocked = await InventoryItem.create(name="Plenty", remaining_quantity=10)
+    assert (await _book(client, stocked, customer, 3)).status_code == 409
+
+
+async def test_cancelling_frees_the_customers_allowance(
+    client: AsyncClient, customer: Customer
+) -> None:
+    stocked = await InventoryItem.create(name="Plenty", remaining_quantity=10)
+    created = (await _book(client, stocked, customer, 2)).json()
+    assert (await _book(client, stocked, customer, 1)).status_code == 409
+
+    await client.post(f"/api/v1/bookings/{created['id']}/cancel")
+
+    assert (await _book(client, stocked, customer, 2)).status_code == 201
+
+
+async def test_completed_bookings_do_not_count_towards_the_limit(
+    client: AsyncClient, customer: Customer
+) -> None:
+    stocked = await InventoryItem.create(name="Plenty", remaining_quantity=10)
+    await Booking.create(
+        item=stocked,
+        customer=customer,
+        quantity=2,
+        status=BookingStatus.COMPLETED,
+        start_at="2020-01-01T10:00:00Z",
+        end_at="2020-01-01T11:00:00Z",
+    )
+
+    assert (await _book(client, stocked, customer, 2)).status_code == 201
+
+
+async def test_limit_is_per_customer(client: AsyncClient, customer: Customer) -> None:
+    other = await Customer.create(
+        name="Grace", surname="Hopper", date_joined="2024-01-02T12:00:00Z"
+    )
+    stocked = await InventoryItem.create(name="Plenty", remaining_quantity=10)
+    assert (await _book(client, stocked, customer, 2)).status_code == 201
+
+    assert (await _book(client, stocked, other, 2)).status_code == 201

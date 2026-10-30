@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Book Inventory{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -12,6 +13,9 @@
     <nav><a href="/docs">API docs</a></nav>
   </header>
   <main class="container">
+    {% if notice %}
+      <div class="notice" role="status">{{ notice }}</div>
+    {% endif %}
     {% if errors %}
       <div class="alert" role="alert">
         <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
